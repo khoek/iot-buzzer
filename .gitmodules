@@ -1,0 +1,9 @@
+[submodule "lib/esp-vs1053"]
+	path = lib/esp-vs1053
+	url = git@github.com:khoek/esp-vs1053.git
+[submodule "lib/libiot"]
+	path = lib/libiot
+	url = git@github.com:khoek/libiot.git
+[submodule "lib/libesp"]
+	path = lib/libesp
+	url = git@github.com:khoek/libesp.git

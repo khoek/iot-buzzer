@@ -161,7 +161,7 @@ static void handle_action(const char* data, uint32_t data_len) {
         }
 
         cJSON* out_json_root = cJSON_CreateObject();
-        if (!json_root) {
+        if (!out_json_root) {
             ESP_LOGE(TAG, "read_sdcard: cannot create JSON root object");
             goto handle_action_read_sdcard_fail_after_dir;
         }

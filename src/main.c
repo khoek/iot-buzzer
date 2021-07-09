@@ -72,8 +72,7 @@ static void handle_buzz(const char* data, uint32_t data_len) {
 
     cJSON* json_root = cJSON_Parse(buff);
     if (!json_root) {
-        const char* error_ptr = cJSON_GetErrorPtr();
-        ESP_LOGW(TAG, "buzz: JSON parse error: %s", error_ptr ? error_ptr : "<NULL>");
+        ESP_LOGW(TAG, "buzz: JSON parse error");
         goto handle_buzz_out;
     }
 
@@ -119,14 +118,13 @@ static void handle_action(const char* data, uint32_t data_len) {
 
     cJSON* json_root = cJSON_Parse(buff);
     if (!json_root) {
-        const char* error_ptr = cJSON_GetErrorPtr();
-        ESP_LOGW(TAG, "action: JSON parse error: %s", error_ptr ? error_ptr : "<NULL>");
+        libiot_logf_error(TAG, "action: JSON parse error");
         goto handle_action_out;
     }
 
     const cJSON* json_type = cJSON_GetObjectItemCaseSensitive(json_root, "type");
     if (!json_type || !cJSON_IsString(json_type)) {
-        ESP_LOGW(TAG, "action: no type or not a string!");
+        libiot_logf_error(TAG, "action: no type or not a string!");
         goto handle_action_out;
     }
 
@@ -138,7 +136,7 @@ static void handle_action(const char* data, uint32_t data_len) {
     } else if (!strcmp("sine_test", json_type->valuestring)) {
         const cJSON* json_volume = cJSON_GetObjectItemCaseSensitive(json_root, "volume");
         if (json_volume && !cJSON_IsNumber(json_volume)) {
-            ESP_LOGW(TAG, "sine_test: volume not a number!");
+            libiot_logf_error(TAG, "sine_test: volume not a number!");
             goto handle_action_out;
         }
 
@@ -156,19 +154,19 @@ static void handle_action(const char* data, uint32_t data_len) {
 
         DIR* dir = opendir(SD_MOUNT_POINT);
         if (!dir) {
-            ESP_LOGE(TAG, "read_sdcard: cannot open '" SD_MOUNT_POINT "'");
+            libiot_logf_error(TAG, "read_sdcard: cannot open '" SD_MOUNT_POINT "'");
             goto handle_action_out;
         }
 
         cJSON* out_json_root = cJSON_CreateObject();
         if (!out_json_root) {
-            ESP_LOGE(TAG, "read_sdcard: cannot create JSON root object");
+            libiot_logf_error(TAG, "read_sdcard: cannot create JSON root object");
             goto handle_action_read_sdcard_fail_after_dir;
         }
 
         cJSON* out_json_files = cJSON_CreateArray();
         if (!out_json_files) {
-            ESP_LOGE(TAG, "read_sdcard: cannot create JSON array");
+            libiot_logf_error(TAG, "read_sdcard: cannot create JSON array");
             goto handle_action_read_sdcard_fail_after_json;
         }
         cJSON_AddItemToObject(out_json_root, "files", out_json_files);
@@ -181,7 +179,7 @@ static void handle_action(const char* data, uint32_t data_len) {
 
             cJSON* out_json_entry = cJSON_CreateString(entry->d_name);
             if (!out_json_entry) {
-                ESP_LOGE(TAG, "read_sdcard: cannot create JSON string");
+                libiot_logf_error(TAG, "read_sdcard: cannot create JSON string");
                 goto handle_action_read_sdcard_fail_after_json;
             }
             cJSON_AddItemToArray(out_json_files, out_json_entry);
@@ -191,11 +189,11 @@ static void handle_action(const char* data, uint32_t data_len) {
 
         char* output = cJSON_PrintUnformatted(out_json_root);
         if (!output) {
-            ESP_LOGE(TAG, "read_sdcard: cannot print JSON output");
+            libiot_logf_error(TAG, "read_sdcard: cannot print JSON output");
             goto handle_action_read_sdcard_fail_after_json;
         }
 
-        esp_mqtt_client_publish(mqtt_get_client(), IOT_MQTT_DEVICE_TOPIC(DEVICE_NAME, "files"), output, strlen(output), 0, 0);
+        libiot_mqtt_publish_local(IOT_MQTT_DEVICE_TOPIC(DEVICE_NAME, "files"), 0, 0, output);
 
         free(output);
 
@@ -205,7 +203,7 @@ static void handle_action(const char* data, uint32_t data_len) {
     handle_action_read_sdcard_fail_after_dir:
         closedir(dir);
     } else {
-        ESP_LOGW(TAG, "action: unknown '%.*s'", data_len, data);
+        libiot_logf_error(TAG, "action: unknown '%.*s'", data_len, data);
     }
 
 handle_action_out:
@@ -224,9 +222,9 @@ static void mqtt_event_handler_cb(esp_mqtt_event_handle_t event) {
             break;
         }
         case MQTT_EVENT_DATA: {
-            if (!strncmp(IOT_MQTT_COMMAND_TOPIC("buzz"), event->topic, event->topic_len)) {
+            if (event->topic_len == sizeof(IOT_MQTT_COMMAND_TOPIC("buzz")) && !memcmp(IOT_MQTT_COMMAND_TOPIC("buzz"), event->topic, event->topic_len)) {
                 handle_buzz(event->data, event->data_len);
-            } else if (!strncmp(IOT_MQTT_DEVICE_TOPIC(DEVICE_NAME, "action"), event->topic, event->topic_len)) {
+            } else if (event->topic_len == sizeof(IOT_MQTT_DEVICE_TOPIC(DEVICE_NAME, "action")) && !memcmp(IOT_MQTT_DEVICE_TOPIC(DEVICE_NAME, "action"), event->topic, event->topic_len)) {
                 handle_action(event->data, event->data_len);
             }
             break;
@@ -276,21 +274,22 @@ void app_init() {
 
 void app_run() {}
 
-static struct node_config CONFIG = {
-    .name = DEVICE_NAME,
-    .ssid = SECRET_WIFI_SSID,
-    .pass = SECRET_WIFI_PASS,
-
-    .uri = "mqtts://storagebox.local",
-    .cert = SECRET_MQTT_CERT,
-    .key = SECRET_MQTT_KEY,
-    .mqtt_pass = SECRET_MQTT_PASS,
-    .mqtt_cb = &mqtt_event_handler_cb,
-
-    .app_init = &app_init,
-    .app_run = &app_run,
-};
-
 void app_main() {
-    libiot_startup(&CONFIG);
+    struct node_config config = {
+        .name = DEVICE_NAME,
+        .ssid = SECRET_WIFI_SSID,
+        .pass = SECRET_WIFI_PASS,
+        .ps_type = WIFI_PS_NONE,
+
+        .uri = "mqtts://storagebox.local",
+        .cert = SECRET_MQTT_CERT,
+        .key = SECRET_MQTT_KEY,
+        .mqtt_pass = SECRET_MQTT_PASS,
+        .mqtt_cb = &mqtt_event_handler_cb,
+
+        .app_init = &app_init,
+        .app_run = &app_run,
+    };
+
+    libiot_startup(&config);
 }

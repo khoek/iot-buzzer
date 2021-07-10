@@ -193,7 +193,7 @@ static void handle_action(const char* data, uint32_t data_len) {
             goto handle_action_read_sdcard_fail_after_json;
         }
 
-        libiot_mqtt_publish_local(IOT_MQTT_DEVICE_TOPIC(DEVICE_NAME, "files"), 0, 0, output);
+        libiot_mqtt_publish_local("files", 2, 0, output);
 
         free(output);
 
@@ -212,6 +212,10 @@ handle_action_out:
     free(buff);
 }
 
+static __always_inline bool unterm_str_matches(const char* term, const char* unterm, size_t unterm_len) {
+    return (unterm_len == strlen(term)) && !memcmp(term, unterm, unterm_len);
+}
+
 static void mqtt_event_handler_cb(esp_mqtt_event_handle_t event) {
     esp_mqtt_client_handle_t client = event->client;
     switch (event->event_id) {
@@ -222,11 +226,14 @@ static void mqtt_event_handler_cb(esp_mqtt_event_handle_t event) {
             break;
         }
         case MQTT_EVENT_DATA: {
-            if (event->topic_len == sizeof(IOT_MQTT_COMMAND_TOPIC("buzz")) && !memcmp(IOT_MQTT_COMMAND_TOPIC("buzz"), event->topic, event->topic_len)) {
+            if (unterm_str_matches(IOT_MQTT_COMMAND_TOPIC("buzz"), event->topic, event->topic_len)) {
                 handle_buzz(event->data, event->data_len);
-            } else if (event->topic_len == sizeof(IOT_MQTT_DEVICE_TOPIC(DEVICE_NAME, "action")) && !memcmp(IOT_MQTT_DEVICE_TOPIC(DEVICE_NAME, "action"), event->topic, event->topic_len)) {
+            }
+
+            if (unterm_str_matches(IOT_MQTT_DEVICE_TOPIC(DEVICE_NAME, "action"), event->topic, event->topic_len)) {
                 handle_action(event->data, event->data_len);
             }
+
             break;
         }
         default: {

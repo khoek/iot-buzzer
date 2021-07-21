@@ -242,7 +242,7 @@ static void mqtt_event_handler_cb(esp_mqtt_event_handle_t event) {
     }
 }
 
-void app_init() {
+void app_run() {
     // Configure the "HSPI" SPI peripheral.
     spi_bus_config_t buscfg = {
         .flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_SCLK | SPICOMMON_BUSFLAG_MOSI | SPICOMMON_BUSFLAG_MISO,
@@ -279,8 +279,6 @@ void app_init() {
     ESP_ERROR_CHECK(vs1053_player_create(audio, &player));
 }
 
-void app_run() {}
-
 void app_main() {
     struct node_config config = {
         .name = DEVICE_NAME,
@@ -288,13 +286,12 @@ void app_main() {
         .pass = SECRET_WIFI_PASS,
         .ps_type = WIFI_PS_NONE,
 
-        .uri = "mqtts://storagebox.local",
+        .uri = SECRET_MQTT_URI,
         .cert = SECRET_MQTT_CERT,
         .key = SECRET_MQTT_KEY,
         .mqtt_pass = SECRET_MQTT_PASS,
         .mqtt_cb = &mqtt_event_handler_cb,
 
-        .app_init = &app_init,
         .app_run = &app_run,
     };
 

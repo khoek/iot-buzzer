@@ -76,20 +76,23 @@ static void handle_buzz(const char* data, uint32_t data_len) {
         goto handle_buzz_out;
     }
 
-    const cJSON* json_file = cJSON_GetObjectItemCaseSensitive(json_root, "file");
+    const cJSON* json_file =
+        cJSON_GetObjectItemCaseSensitive(json_root, "file");
     if (!json_file || !cJSON_IsString(json_file)) {
         ESP_LOGW(TAG, "buzz: no file or not a string!");
         goto handle_buzz_out;
     }
 
-    const cJSON* json_volume = cJSON_GetObjectItemCaseSensitive(json_root, "volume");
+    const cJSON* json_volume =
+        cJSON_GetObjectItemCaseSensitive(json_root, "volume");
     if (json_volume && !cJSON_IsNumber(json_volume)) {
         ESP_LOGW(TAG, "buzz: volume not a number!");
         goto handle_buzz_out;
     }
 
     const char* file = json_file->valuestring;
-    int volume = json_volume ? clip_volume(json_volume->valueint) : DEFAULT_VOLUME;
+    int volume =
+        json_volume ? clip_volume(json_volume->valueint) : DEFAULT_VOLUME;
 
     char path[256];
     snprintf(path, sizeof(path) / sizeof(char), "%s/%s", SD_MOUNT_POINT, file);
@@ -122,7 +125,8 @@ static void handle_action(const char* data, uint32_t data_len) {
         goto handle_action_out;
     }
 
-    const cJSON* json_type = cJSON_GetObjectItemCaseSensitive(json_root, "type");
+    const cJSON* json_type =
+        cJSON_GetObjectItemCaseSensitive(json_root, "type");
     if (!json_type || !cJSON_IsString(json_type)) {
         libiot_logf_error(TAG, "action: no type or not a string!");
         goto handle_action_out;
@@ -134,13 +138,15 @@ static void handle_action(const char* data, uint32_t data_len) {
         stop_current_play(false);
         vs1053_reconfigure_to_defaults(audio);
     } else if (!strcmp("sine_test", json_type->valuestring)) {
-        const cJSON* json_volume = cJSON_GetObjectItemCaseSensitive(json_root, "volume");
+        const cJSON* json_volume =
+            cJSON_GetObjectItemCaseSensitive(json_root, "volume");
         if (json_volume && !cJSON_IsNumber(json_volume)) {
             libiot_logf_error(TAG, "sine_test: volume not a number!");
             goto handle_action_out;
         }
 
-        int volume = json_volume ? clip_volume(json_volume->valueint) : DEFAULT_VOLUME;
+        int volume =
+            json_volume ? clip_volume(json_volume->valueint) : DEFAULT_VOLUME;
         ESP_LOGW(TAG, "sine_test: volume=%u", volume);
 
         stop_current_play(true);
@@ -154,13 +160,15 @@ static void handle_action(const char* data, uint32_t data_len) {
 
         DIR* dir = opendir(SD_MOUNT_POINT);
         if (!dir) {
-            libiot_logf_error(TAG, "read_sdcard: cannot open '" SD_MOUNT_POINT "'");
+            libiot_logf_error(TAG,
+                              "read_sdcard: cannot open '" SD_MOUNT_POINT "'");
             goto handle_action_out;
         }
 
         cJSON* out_json_root = cJSON_CreateObject();
         if (!out_json_root) {
-            libiot_logf_error(TAG, "read_sdcard: cannot create JSON root object");
+            libiot_logf_error(TAG,
+                              "read_sdcard: cannot create JSON root object");
             goto handle_action_read_sdcard_fail_after_dir;
         }
 
@@ -179,7 +187,8 @@ static void handle_action(const char* data, uint32_t data_len) {
 
             cJSON* out_json_entry = cJSON_CreateString(entry->d_name);
             if (!out_json_entry) {
-                libiot_logf_error(TAG, "read_sdcard: cannot create JSON string");
+                libiot_logf_error(TAG,
+                                  "read_sdcard: cannot create JSON string");
                 goto handle_action_read_sdcard_fail_after_json;
             }
             cJSON_AddItemToArray(out_json_files, out_json_entry);
@@ -212,25 +221,27 @@ handle_action_out:
     free(buff);
 }
 
-static __always_inline bool unterm_str_matches(const char* term, const char* unterm, size_t unterm_len) {
-    return (unterm_len == strlen(term)) && !memcmp(term, unterm, unterm_len);
-}
-
 static void mqtt_event_handler_cb(esp_mqtt_event_handle_t event) {
     esp_mqtt_client_handle_t client = event->client;
     switch (event->event_id) {
         case MQTT_EVENT_CONNECTED: {
-            // Note: libiot automatically subscribes to the `IOT_MQTT_DEVICE_TOPIC()` namespace,
-            // but anything outside of that must be explicitly subscribed here.
-            assert(esp_mqtt_client_subscribe(client, IOT_MQTT_COMMAND_TOPIC("buzz"), 1) >= 0);
+            // Note: libiot automatically subscribes to the
+            // `IOT_MQTT_DEVICE_TOPIC()` namespace, but anything outside of that
+            // must be explicitly subscribed here.
+            assert(esp_mqtt_client_subscribe(client,
+                                             IOT_MQTT_COMMAND_TOPIC("buzz"), 1)
+                   >= 0);
             break;
         }
         case MQTT_EVENT_DATA: {
-            if (unterm_str_matches(IOT_MQTT_COMMAND_TOPIC("buzz"), event->topic, event->topic_len)) {
+            if (util_unterm_str_matches(IOT_MQTT_COMMAND_TOPIC("buzz"),
+                                        event->topic, event->topic_len)) {
                 handle_buzz(event->data, event->data_len);
             }
 
-            if (unterm_str_matches(IOT_MQTT_DEVICE_TOPIC(DEVICE_NAME, "action"), event->topic, event->topic_len)) {
+            if (util_unterm_str_matches(IOT_MQTT_DEVICE_TOPIC(DEVICE_NAME,
+                                                              "action"),
+                                        event->topic, event->topic_len)) {
                 handle_action(event->data, event->data_len);
             }
 
@@ -245,7 +256,8 @@ static void mqtt_event_handler_cb(esp_mqtt_event_handle_t event) {
 void app_run() {
     // Configure the "HSPI" SPI peripheral.
     spi_bus_config_t buscfg = {
-        .flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_SCLK | SPICOMMON_BUSFLAG_MOSI | SPICOMMON_BUSFLAG_MISO,
+        .flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_SCLK
+                 | SPICOMMON_BUSFLAG_MOSI | SPICOMMON_BUSFLAG_MISO,
 
         .miso_io_num = PIN_SPI_MISO,
         .mosi_io_num = PIN_SPI_MOSI,
@@ -259,41 +271,42 @@ void app_run() {
     ESP_ERROR_CHECK(spi_bus_initialize(HSPI_HOST, &buscfg, 1));
 
     // Configure the ESP32 to communicate with the VS1053 on "HSPI".
-    vs1053_init(HSPI_HOST, PIN_VS1053_CS, PIN_VS1053_DCS, PIN_VS1053_DREQ, &audio);
+    vs1053_init(HSPI_HOST, PIN_VS1053_CS, PIN_VS1053_DCS, PIN_VS1053_DREQ,
+                &audio);
 
     // Note: Must configure the SD card before any other traffic on the SPI bus,
     // due to the unfortunate way SD supports its (non-native) SPI mode.
-    // Danger: On the other hand, all other devices on the SPI bus must be registered
-    // in the `spi_master` driver before this call, since otherwise their `CS` lines
-    // may be floating and they may see SD card traffic as directed at them.
+    // Danger: On the other hand, all other devices on the SPI bus must be
+    // registered in the `spi_master` driver before this call, since otherwise
+    // their `CS` lines may be floating and they may see SD card traffic as
+    // directed at them.
 
     // Configure the ESP32 to communicate with the SD card on "HSPI",
     // and mount the FAT partition in the virtual filesystem.
     sdmmc_card_t* handle;
-    sdspi_mount("/sdcard", HSPI_HOST,
-                PIN_SDCARD_CS, SDSPI_SLOT_NO_CD, SDSPI_SLOT_NO_WP,
-                false, 5, &handle);
+    sdspi_mount("/sdcard", HSPI_HOST, PIN_SDCARD_CS, SDSPI_SLOT_NO_CD,
+                SDSPI_SLOT_NO_WP, false, 5, &handle);
 
     vs1053_ctrl_set_volume(audio, DEFAULT_VOLUME, DEFAULT_VOLUME);
 
     ESP_ERROR_CHECK(vs1053_player_create(audio, &player));
 }
 
+static struct node_config config = {
+    .name = DEVICE_NAME,
+    .ssid = SECRET_WIFI_SSID,
+    .pass = SECRET_WIFI_PASS,
+    .ps_type = WIFI_PS_NONE,
+
+    .uri = SECRET_MQTT_URI,
+    .cert = SECRET_MQTT_CERT,
+    .key = SECRET_MQTT_KEY,
+    .mqtt_pass = SECRET_MQTT_PASS,
+    .mqtt_cb = &mqtt_event_handler_cb,
+
+    .app_run = &app_run,
+};
+
 void app_main() {
-    struct node_config config = {
-        .name = DEVICE_NAME,
-        .ssid = SECRET_WIFI_SSID,
-        .pass = SECRET_WIFI_PASS,
-        .ps_type = WIFI_PS_NONE,
-
-        .uri = SECRET_MQTT_URI,
-        .cert = SECRET_MQTT_CERT,
-        .key = SECRET_MQTT_KEY,
-        .mqtt_pass = SECRET_MQTT_PASS,
-        .mqtt_cb = &mqtt_event_handler_cb,
-
-        .app_run = &app_run,
-    };
-
     libiot_startup(&config);
 }
